@@ -126,8 +126,8 @@ ifeq (, $(shell which $(CC)))
   $(error The selected compiler ($(CC)) was not found)
 endif
 
-GCCVERSION     := $(shell $(CC) -dumpversion | cut -f1 -d. | cut -f1 -d-)
-GCCMINOR       := $(shell $(CC) -dumpversion | cut -f2 -d. | cut -f1 -d-)
+GCCVERSION     := $(shell $(CC) -dumpversion | sed -e 's/-win32/.0/' | cut -f1 -d. | cut -f1 -d-)
+GCCMINOR       := $(shell $(CC) -dumpversion | sed -e 's/-win32/.0/' | cut -f2 -d. | cut -f1 -d-)
 GCCMACHINE     := $(shell $(CC) -dumpmachine)
 GCCNEWENOUGH   := $(shell ( [ $(GCCVERSION) -gt "4" ]        \
                           || ( [ $(GCCVERSION) -eq "4" ]     \
@@ -141,6 +141,17 @@ ifneq ($(GCC_ARCH),$(findstring $(GCC_ARCH), $(GCCMACHINE)))
   $(error The selected compiler ($(CC)) is not set for $(ARCH))
 endif
 
+# Set verbose or nonverbose output similarly to automake's silent rules.
+# Default is nonverbose, but, just like with automake, it can be disabled
+# with: 'make V=1'
+ifneq ($(V),1)
+  HIDE=@
+  ECHO=echo
+else
+  HIDE=
+  ECHO=true
+endif
+
 .PHONY: all clean superclean
 all: $(GNUEFI_DIR)/$(GNUEFI_ARCH)/lib/libefi.a main.efi
 
@@ -148,19 +159,19 @@ $(GNUEFI_DIR)/$(GNUEFI_ARCH)/lib/libefi.a:
 	$(MAKE) -C$(GNUEFI_DIR) CROSS_COMPILE=$(CROSS_COMPILE) ARCH=$(GNUEFI_ARCH) $(GNUEFI_LIBS)
 
 %.efi: %.o
-	@echo  [LD]  $(notdir $@)
+	@$(ECHO) "  LD       $(notdir $@)"
 ifeq ($(CRT0_LIBS),)
-	@$(CC) $(LDFLAGS) $< -o $@ $(LIBS)
+	$(HIDE)$(CC) $(LDFLAGS) $< -o $@ $(LIBS)
 else
-	@$(CC) $(LDFLAGS) $< -o $*.elf $(LIBS)
-	@$(OBJCOPY) -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .rel* \
+	$(HIDE)$(CC) $(LDFLAGS) $< -o $*.elf $(LIBS)
+	$(HIDE)$(OBJCOPY) -j .text -j .sdata -j .data -j .dynamic -j .dynsym -j .rel* \
 	            -j .rela* -j .reloc -j .eh_frame -O binary $*.elf $@
 	@rm -f $*.elf
 endif
 
 %.o: %.c
-	@echo  [CC]  $(notdir $@)
-	@$(CC) $(CFLAGS) -ffreestanding -c $<
+	@$(ECHO) "  CC       $(notdir $@)"
+	$(HIDE)$(CC) $(CFLAGS) -ffreestanding -c $<
 
 qemu: CFLAGS += -D_DEBUG
 qemu: all $(FW_BASE)_$(FW_ARCH).fd image/efi/boot/boot$(ARCH).efi
